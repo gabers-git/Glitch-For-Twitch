@@ -26,3 +26,4 @@ struct StreamStatusResponse: Decodable {
     let viewerCount: Int?
     let checkedAt: Date
 }
+
