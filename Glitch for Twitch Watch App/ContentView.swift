@@ -11,139 +11,180 @@ import AVKit
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = HLSPlayerModel()
+    @FocusState private var isChannelFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                TextField("Twitch channel", text: $model.channelName)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 10) {
+                    header
+
+                    VideoPlayer(player: model.player)
+                    .frame(height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(.white.opacity(0.10), lineWidth: 1)
+                    )
+
+                    statusRow
+
+                    TextField("Channel", text: $model.channelName)
+                    .focused($isChannelFocused)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.go)
+                    .font(.caption)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onSubmit {
                         model.loadAndPlay()
+                        isChannelFocused = false
                     }
 
-                Button {
-                    model.loadAndPlay()
-                } label: {
-                    Label("Watch", systemImage: "play.fill")
-                }
-                .buttonStyle(.borderedProminent)
+                    HStack(spacing: 8) {
+                        Button {
+                            model.loadAndPlay()
+                            isChannelFocused = false
+                        } label: {
+                            Label("Watch", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.purple)
 
-                VideoPlayer(player: model.player)
-                    .frame(height: 145)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                statusView
-
-                HStack(spacing: 8) {
-                    Button {
-                        model.play()
-                    } label: {
-                        Label("Play", systemImage: "play.fill")
+                        Button {
+                            model.reconnect()
+                        } label: {
+                            Label("↻", systemImage: "arrow.clockwise")
+                            .frame(width: 34)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(model.isPlaying)
 
-                    Button {
-                        model.pause()
-                    } label: {
-                        Label("Pause", systemImage: "pause.fill")
+                    HStack(spacing: 8) {
+                        Button {
+                            model.play()
+                        } label: {
+                            Image(systemName: "play.fill")
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isPlaying)
+
+                        Button {
+                            model.pause()
+                        } label: {
+                            Image(systemName: "pause.fill")
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!model.isPlaying)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(!model.isPlaying)
-                }
 
-                Button {
-                    model.reconnect()
-                } label: {
-                    Label("Reconnect", systemImage: "arrow.clockwise")
+                    details
                 }
-                .buttonStyle(.bordered)
-
-                streamDetails
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-        }
-        .navigationTitle("WatchStream")
-        .onDisappear {
-            model.stopAndCleanUp()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            switch newPhase {
-            case .active:
-                break
-
-            case .inactive, .background:
-                model.pause()
-            @unknown default:
-                model.pause()
+            .scrollIndicators(.hidden)
+            .navigationTitle("WatchStream")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.black,
+                        Color(red: 0.07, green: 0.07, blue: 0.10)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .onDisappear { model.stopAndCleanUp() }
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                    case .active:
+                        break
+                    default:
+                        model.pause()
+                }
             }
         }
     }
 
-    private var statusView: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+    private var header: some View {
+        VStack(spacing: 2) {
+            Text("Live Stream")
+            .font(.headline)
+            .foregroundStyle(.primary)
 
             Text(model.state.displayText)
-                .font(.caption2)
-                .multilineTextAlignment(.leading)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer()
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 2)
     }
 
-    private var streamDetails: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(model.isLive ? "Stream type: Live" : "Stream type: HLS")
-                .font(.caption2)
+    private var statusRow: some View {
+        HStack(spacing: 6) {
+            Circle()
+            .fill(statusColor)
+            .frame(width: 7, height: 7)
 
+            Text(model.isLive ? "Live" : "HLS")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text(model.isPlaying ? "Playing" : "Paused")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 4) {
             if model.duration > 0 {
-                Text("Time: \(format(seconds: model.currentTime)) / \(format(seconds: model.duration))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text("\(format(seconds: model.currentTime)) / \(format(seconds: model.duration))")
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
             } else {
-                Text("Position: \(format(seconds: model.currentTime))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text("Position \(format(seconds: model.currentTime))")
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 2)
     }
 
     private var statusColor: Color {
         switch model.state {
-        case .playing:
-            return .green
-        case .buffering, .loading:
-            return .yellow
-        case .failed:
-            return .red
-        default:
-            return .gray
+            case .playing: return .green
+            case .buffering, .loading: return .yellow
+            case .failed: return .red
+            default: return .gray
         }
     }
 
     private func format(seconds: Double) -> String {
-        guard seconds.isFinite else {
-            return "--:--"
-        }
-
+        guard seconds.isFinite else { return "--:--" }
         let totalSeconds = max(0, Int(seconds))
-        let minutes = totalSeconds / 60
-        let remainingSeconds = totalSeconds % 60
-
-        return String(format: "%02d:%02d", minutes, remainingSeconds)
+        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 }
 
 #Preview {
-    ContentView()
+ContentView()
 }
-
