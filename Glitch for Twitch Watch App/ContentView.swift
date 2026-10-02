@@ -12,6 +12,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = HLSPlayerModel()
     @FocusState private var isChannelFocused: Bool
+    @State private var showVideoFullScreen = false
+    @State private var isRotatedClockwise = false
 
     var body: some View {
         NavigationStack {
@@ -20,29 +22,41 @@ struct ContentView: View {
                     header
 
                     VideoPlayer(player: model.player)
-                    .frame(height: 132)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(.white.opacity(0.10), lineWidth: 1)
-                    )
+                        .frame(height: 132)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(.white.opacity(0.10), lineWidth: 1)
+                        )
+                        .overlay(alignment: .bottomTrailing) {
+                            Button {
+                                showVideoFullScreen = true
+                            } label: {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.caption2)
+                                    .frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.black.opacity(0.7))
+                            .padding(8)
+                        }
 
                     statusRow
 
                     TextField("Channel", text: $model.channelName)
-                    .focused($isChannelFocused)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.go)
-                    .font(.caption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .onSubmit {
-                        model.loadAndPlay()
-                        isChannelFocused = false
-                    }
+                        .focused($isChannelFocused)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.go)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .onSubmit {
+                            model.loadAndPlay()
+                            isChannelFocused = false
+                        }
 
                     HStack(spacing: 8) {
                         Button {
@@ -50,35 +64,16 @@ struct ContentView: View {
                             isChannelFocused = false
                         } label: {
                             Label("Watch", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.purple)
 
                         Button {
-                            model.reconnect()
-                        } label: {
-                            Label("↻", systemImage: "arrow.clockwise")
-                            .frame(width: 34)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    HStack(spacing: 8) {
-                        Button {
-                            model.play()
-                        } label: {
-                            Image(systemName: "play.fill")
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isPlaying)
-
-                        Button {
                             model.pause()
                         } label: {
-                            Image(systemName: "pause.fill")
-                            .frame(maxWidth: .infinity)
+                            Label("Pause", systemImage: "pause.fill")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .disabled(!model.isPlaying)
@@ -107,10 +102,21 @@ struct ContentView: View {
             .onDisappear { model.stopAndCleanUp() }
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
-                    case .active:
-                        break
-                    default:
-                        model.pause()
+                case .active:
+                    break
+                default:
+                    model.pause()
+                }
+            }
+            .fullScreenCover(isPresented: $showVideoFullScreen) {
+                ZStack(alignment: .topTrailing) {
+                    Color.black.ignoresSafeArea()
+
+                    VideoPlayer(player: model.player)
+                        .ignoresSafeArea()
+                }
+                .onTapGesture {
+                    showVideoFullScreen = false
                 }
             }
         }
@@ -119,14 +125,14 @@ struct ContentView: View {
     private var header: some View {
         VStack(spacing: 2) {
             Text("Live Stream")
-            .font(.headline)
-            .foregroundStyle(.primary)
+                .font(.headline)
+                .foregroundStyle(.primary)
 
             Text(model.state.displayText)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 2)
@@ -135,18 +141,18 @@ struct ContentView: View {
     private var statusRow: some View {
         HStack(spacing: 6) {
             Circle()
-            .fill(statusColor)
-            .frame(width: 7, height: 7)
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
 
             Text(model.isLive ? "Live" : "HLS")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             Spacer()
 
             Text(model.isPlaying ? "Playing" : "Paused")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 2)
     }
@@ -155,14 +161,14 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 4) {
             if model.duration > 0 {
                 Text("\(format(seconds: model.currentTime)) / \(format(seconds: model.duration))")
-                .font(.caption2)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             } else {
                 Text("Position \(format(seconds: model.currentTime))")
-                .font(.caption2)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,10 +177,10 @@ struct ContentView: View {
 
     private var statusColor: Color {
         switch model.state {
-            case .playing: return .green
-            case .buffering, .loading: return .yellow
-            case .failed: return .red
-            default: return .gray
+        case .playing: return .green
+        case .buffering, .loading: return .yellow
+        case .failed: return .red
+        default: return .gray
         }
     }
 
@@ -186,5 +192,5 @@ struct ContentView: View {
 }
 
 #Preview {
-ContentView()
+    ContentView()
 }
