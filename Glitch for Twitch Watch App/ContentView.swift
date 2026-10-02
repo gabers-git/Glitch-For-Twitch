@@ -15,6 +15,21 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
+                TextField("Twitch channel", text: $model.channelName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.go)
+                    .onSubmit {
+                        model.loadAndPlay()
+                    }
+
+                Button {
+                    model.loadAndPlay()
+                } label: {
+                    Label("Watch", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+
                 VideoPlayer(player: model.player)
                     .frame(height: 145)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -52,9 +67,6 @@ struct ContentView: View {
             .padding(.vertical, 4)
         }
         .navigationTitle("WatchStream")
-        .onAppear {
-            model.loadAndPlay()
-        }
         .onDisappear {
             model.stopAndCleanUp()
         }

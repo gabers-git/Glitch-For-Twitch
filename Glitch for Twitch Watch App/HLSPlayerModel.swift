@@ -41,16 +41,15 @@ final class HLSPlayerModel: ObservableObject {
     }
 
     private let backendClient = BackendClient(
-        baseURL: URL(string: "http://192.168.0.2:3000")!
+        baseURL: URL(string: "https://twitch-api.gaber.ca")!
     )
-
-    private let channelName = "test-channel"
 
     // Replace this with a real short-lived token when authentication is added.
     private let sessionToken: String? = nil
 
     private var loadTask: Task<Void, Never>?
 
+    @Published var channelName = ""
     @Published private(set) var state: PlayerState = .idle
     @Published private(set) var isPlaying = false
     @Published private(set) var isLive = false
@@ -78,12 +77,30 @@ final class HLSPlayerModel: ObservableObject {
     }
 
     func loadAndPlay() {
-        loadTask?.cancel()
+        let channel = channelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        channelName = channel
 
+        guard channel.range(of: "^[A-Za-z0-9_]{1,25}$", options: .regularExpression) != nil else {
+            loadTask?.cancel()
+            loadTask = nil
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            resetSubscriptions()
+            isPlaying = false
+            isLive = false
+            currentTime = 0
+            duration = 0
+            state = .failed(channel.isEmpty
+                ? "Enter a Twitch channel name"
+                : "Enter a valid Twitch channel name")
+            return
+        }
+
+        loadTask?.cancel()
         loadTask = Task { [weak self] in
             guard let self else { return }
 
-            await self.loadFromBackend()
+            await self.loadFromBackend(channel: channel)
         }
     }
 
@@ -127,7 +144,7 @@ final class HLSPlayerModel: ObservableObject {
     }
 
     
-    private func loadFromBackend() async {
+    private func loadFromBackend(channel: String) async {
         resetSubscriptions()
 
         player.pause()
@@ -141,7 +158,7 @@ final class HLSPlayerModel: ObservableObject {
 
         do {
             let playback = try await backendClient.requestPlaybackURL(
-                channel: channelName,
+                channel: channel,
                 sessionToken: sessionToken
             )
 
